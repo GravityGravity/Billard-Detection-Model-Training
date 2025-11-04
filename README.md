@@ -1,6 +1,6 @@
 # Billiard Ball Finder (PyTorch • Solids vs Stripes)
 
-This project identifies all billiard balls in a table image (e.g., `thumb_40.png`) and classifies each as **solid** or **striped** using **PyTorch**. The entire process runs in **under 10 seconds per image**, even on a modest GPU or laptop CPU.
+This project identifies all billiard balls in a table image and classifies each as **solid** or **striped** using **PyTorch**. The entire process runs in **under 10 seconds per image**, even on a modest GPU or laptop CPU.
 
 ## Overview
 The system combines fast image processing with deep learning to:

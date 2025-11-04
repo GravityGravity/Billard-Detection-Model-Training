@@ -20,9 +20,9 @@ The system combines fast image processing with deep learning to:
 - Deterministic and reproducible evaluation with fixed seeds
 
 ## 📦 Dependencies (requirements.txt)
-cv2
-numpy
-torch
-torchvision
-pandas
+cv2,
+numpy,
+torch,
+torchvision,
+pandas,
 Pillow

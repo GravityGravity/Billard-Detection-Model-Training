@@ -1,6 +1,6 @@
-pip install pandas
-pip install cv2
-pip install torchvision
-pip install torch
-pip install pillow
-pip install colorama
+pandas
+opencv-python
+torchvision
+torch
+pillow
+colorama

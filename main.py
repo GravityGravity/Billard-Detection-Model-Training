@@ -36,7 +36,7 @@ def image_gather(normalization: bool):
     except IndexError:
         sys.exit(cl.Fore.RED + '  ERROR: No Argument for image path')
 
-    for f in folder.glob('*'):
+    for i, f in enumerate(folder.glob('*')):
         if f.suffix != '.png':
             continue
 
@@ -55,7 +55,7 @@ def image_gather(normalization: bool):
             img = img.astype(np.float32) / 255.0
 
         with open(label_path, 'r') as label:
-            type(label)
+            label = [line.strip() for line in label]
 
         rows.append({'file_name': f.name, 'image': img, 'annotation': label})
 
@@ -63,5 +63,4 @@ def image_gather(normalization: bool):
 image_gather(True)
 
 for r in rows:
-    print(r)
-    print('\n')
+    print(r['file_name'])

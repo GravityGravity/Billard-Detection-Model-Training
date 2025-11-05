@@ -6,9 +6,13 @@
 # Test file locations:
 #   - C:\Users\Work\_repos\CompVision\Billard-Train\test\annotated_images
 
+# 1 for striped balls and 0 for solid balls
+
+
 import sys
 import os
 from pathlib import Path
+from collections import defaultdict
 import colorama as cl
 import cv2 as cv
 import torch as tc
@@ -20,9 +24,9 @@ import PIL as pl  # Pillow basic image manipulation
 cl.init(autoreset=True)  # Reset color to default after every print
 
 # Tells Pytroch to use GPU for tensor operations
-device = tc.device('cuda' if tc.cuda.is_available() else 'cpu')
+# device = tc.device('cuda' if tc.cuda.is_available() else 'cpu')
 
-rows = []
+rows = defaultdict(dict)
 
 
 def image_gather(normalization: bool):
@@ -51,16 +55,19 @@ def image_gather(normalization: bool):
                   {label_path.name} + ' img annotation did not exist')  # debug
             continue
 
+        print(f.stem)
+
         if normalization is True:
             img = img.astype(np.float32) / 255.0
 
         with open(label_path, 'r') as label:
             label = [line.strip() for line in label]
-
-        rows.append({'file_name': f.name, 'image': img, 'annotation': label})
+        rows[int(f.stem)] = {'file_name': f.name, 'image': img, 'annotation': label}
 
 
 image_gather(True)
 
 for r in rows:
-    print(r['file_name'])
+    print(r)
+    print(rows[r])
+    print('\n')

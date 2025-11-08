@@ -1,6 +1,7 @@
 pandas
 opencv-python
-torchvision
 torch
+torchvision
+torchsummary
 pillow
 colorama

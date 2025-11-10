@@ -30,7 +30,10 @@ cl.init(autoreset=True)  # Reset color to default after every print
 # Tells Pytroch to use GPU for tensor operations
 # device = tc.device('cuda' if tc.cuda.is_available() else 'cpu')
 
-rows = defaultdict(dict)
+rows = defaultdict(list)
+# Classes for COCO Style data format standard
+Categories = [{"id": 0, "name": 'solid'},
+              {"id": 1, "name": 'striped'}]
 
 
 class ballDataset(tc.utils.data.Dataset):
@@ -38,10 +41,8 @@ class ballDataset(tc.utils.data.Dataset):
     """
 
     def __init__(self,
-                 root: Path = None,
                  exts: tuple[str, ...] = (".png", ".jpg", ".jpeg"),
                  scale_01: bool = True):
-        root = None
         self.exts = exts
         self.scale_01 = scale_01
         self.ann = {}
@@ -53,16 +54,26 @@ class ballDataset(tc.utils.data.Dataset):
         except IndexError:
             sys.exit(cl.Fore.RED + '  ERROR: No Argument for image path')
 
+        # Create Categories
+        rows["categories"] = Categories
+
+        img_iter = 1
+
         # Loop through all files in training image data
-        for f in tqdm(root.glob('*'), total=100):
-            if not f.suffix in exts:
+        for f in root.glob('*'):
+
+            if not f.suffix.lower() in exts:
                 continue
 
             # Read in image as color
-            img = cv.imread(str(f), cv.IMREAD_COLOR)
+            img = cv.imread(str(f), cv.IMREAD_COLOR_RGB)
             if img is None:
                 print(cl.Fore.RED + '    X' + cl.Fore.WHITE +
                       {f.name} + ' img did not get read')  # debug
+
+            # Add image to COCO data format standard
+            rows['images'].append(
+                {"id": img_iter, "file_name": f.name, "height": img.shape[0], "width": img.shape[1]})
 
             # Find image annotation file path
             label_path = f.with_suffix('.txt')
@@ -79,29 +90,37 @@ class ballDataset(tc.utils.data.Dataset):
 
             # Write image ball labels into annotationsz
             with open(label_path, 'r') as label:
-                lines = [line.strip() for line in label]
+                lines = [line.strip() for line in label.readlines()[1:]]
                 labels = [line.split() for line in lines]
-                self.ann[f.stem] = labels
 
-        self.images = list(self.ann.keys())
-        self.boxes = [val[1:] for key, val in self.ann.items()]
+                for boundary in labels:
+                    Radius = int(boundary[2])
+                    TL_x = int(boundary[0]) - Radius
+                    TL_y = int(boundary[1]) - Radius
+                    B_class = int(boundary[3])
+
+                    rows['annotations'].append(
+                        {"id": (len(rows['annotations'])+1), "image_id": img_iter, "bbox": [TL_x, TL_y, Radius*2, Radius*2], "category_id": B_class})
+
+            img_iter += 1
 
     def __len__(self) -> int:
-        return len(self.images)
+        return len(rows['images'])
+
+    def print_dataset(self):
+        for key, value in rows.items():
+            print(f'{key}')
+            for v in value:
+                print(f'{v}')
+        return None
+
+    def __getitem__(self, index):
+        return super().__getitem__(index)
 
 
 bDet = ballDataset()
 
-for annotation in bDet.ann:
-    print(bDet.ann[annotation])
-    print('\n')
-
-print(bDet.ann.keys())
-
-for box in bDet.boxes:
-    print(box)
-
-print(len(bDet))
+bDet.print_dataset()
 
 
 class ballDet(nn.Module):

@@ -19,7 +19,6 @@ import cv2 as cv
 import torch.nn as nn
 import torch.nn.functional as F
 import torch as tc
-from torchsummary import summary
 import torchvision
 import numpy as np  # Mathmatical data structs
 import pandas as pd  # Handle large datasets
@@ -30,12 +29,7 @@ cl.init(autoreset=True)  # Reset color to default after every print
 # Tells Pytroch to use GPU for tensor operations
 # device = tc.device('cuda' if tc.cuda.is_available() else 'cpu')
 
-rows = defaultdict(list)
 # Classes for COCO Style data format standard
-Categories = [{"id": 0, "name": 'solid'},
-              {"id": 1, "name": 'striped'}]
-
-
 class ballDataset(tc.utils.data.Dataset):
     """Gather and read in images for model training
     """
@@ -45,12 +39,15 @@ class ballDataset(tc.utils.data.Dataset):
                  scale_01: bool = True):
         self.exts = exts
         self.scale_01 = scale_01
+        self.rows = rows = defaultdict(list)
+        self.Categories = Categories = [{"id": 0, "name": 'solid'},
+              {"id": 1, "name": 'striped'}]
         self.ann = {}
         print(cl.Fore.CYAN + 'Class ballDataset(tc.Dataset)')
 
         try:
             print(f'Image path passed: {sys.argv[1]}')
-            root = Path(sys.argv[1])
+            self.root = Path(sys.argv[1])
         except IndexError:
             sys.exit(cl.Fore.RED + '  ERROR: No Argument for image path')
 
@@ -60,7 +57,7 @@ class ballDataset(tc.utils.data.Dataset):
         img_iter = 1
 
         # Loop through all files in training image data
-        for f in root.glob('*'):
+        for f in self.root.glob('*'):
 
             if not f.suffix.lower() in exts:
                 continue
@@ -85,9 +82,6 @@ class ballDataset(tc.utils.data.Dataset):
             # Print file number read
             tqdm.write(f"{f.stem}")
 
-            # Normalize image
-            img = img.astype(np.float32) / 255.0
-
             # Write image ball labels into annotationsz
             with open(label_path, 'r') as label:
                 lines = [line.strip() for line in label.readlines()[1:]]
@@ -103,24 +97,65 @@ class ballDataset(tc.utils.data.Dataset):
                         {"id": (len(rows['annotations'])+1), "image_id": img_iter, "bbox": [TL_x, TL_y, Radius*2, Radius*2], "category_id": B_class})
 
             img_iter += 1
+            self.images = rows['images']
+            self.ann = rows['annotations']
 
     def __len__(self) -> int:
-        return len(rows['images'])
+        return len(self.rows['images'])
 
     def print_dataset(self):
-        for key, value in rows.items():
+        for key, value in self.rows.items():
             print(f'{key}')
             for v in value:
                 print(f'{v}')
         return None
 
-    def __getitem__(self, index):
-        return super().__getitem__(index)
+    def __getitem__(self, idx):
+        img_info = self.images[idx]
+
+        # Read in image as color
+        img = cv.imread(os.path.join(self.root, img_info['file_name']), cv.IMREAD_COLOR_RGB)
+        if img is None:
+            print(cl.Fore.RED + '    X' + cl.Fore.WHITE +
+                    {img_info['file_name']} + ' img did not get read')  # debug
+        
+        # Normalize image
+        img = img.astype(np.float32) / 255.0
+
+        # OpenCV reads img as numpy array H, W, C.  create tensor with order of img shape as C, H, W.
+        img = tc.as_tensor(img).permute(2, 0, 1)
+
+        # Get ball annotations for this img
+        img_anns = [a for a in self.ann if a['image_id'] == img_info['id']]
+        boxes = []
+        labels = []
+
+        # Create bounding boxes for each ball in img and add classification of ball into labels
+        for a in img_anns:
+            min_x, min_y, w, h = a['bbox']
+            max_x, max_y = min_x + w, min_y + h
+            boxes.append([min_x, min_y, max_x, max_y])
+            labels.append(a['category_id'])
+
+        # Target data standard format that pytorch vision takes in for model training
+        target = {"boxes": tc.as_tensor(boxes, dtype=tc.float32),
+                  "labels": tc.as_tensor(labels, dtype=tc.int64),
+                  "image_id": tc.tensor([img_info['id   ']], dtype=tc.int64)}
+        
+        return img, target
 
 
 bDet = ballDataset()
 
 bDet.print_dataset()
+
+class ballDetector():
+    def __init__(self):
+        backbone = torchvision.models.resnet.resnet18()
+        self.backbone = torchvision.models._utils.IntermediateLayerGetter(backbone, return_layers={'layer4': 'feat4'})
+
+
+
 
 
 class ballDet(nn.Module):

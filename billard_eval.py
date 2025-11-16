@@ -72,4 +72,10 @@ with torch.no_grad():
     print(TotalBalls)
 
     for x, y, rad, type in ball_coordinates:
+        cv2.circle(img, (x, y), rad, ((255, 0, 0)
+                   if type == 1 else (0, 255, 0)), 3)
         print(f'{x} {y} {rad} {type}')
+
+img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+cv2.imshow(str({img_path}), img)
+cv2.waitKey(0)

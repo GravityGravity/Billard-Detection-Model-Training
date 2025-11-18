@@ -1,5 +1,14 @@
 # File: billard_train.py
-#   Model: Resnet 50 pretrained with 512x512 images and 16x16 gride size (resent stride: 32)
+# Model: ResNet-50 backbone, 512x512 inputs, 16×16 prediction grid.
+#
+# Description:
+#   Trains a YOLO-style billiard ball detector (solid vs striped).
+#   Loads images + CSV annotations, builds a 16×16 target grid, runs training,
+#   saves the model, then performs a quick confidence-based evaluation.
+#
+# Example (terminal):
+#   python billard_train.py ...path/to/annotated_images/
+
 
 import os
 import sys
@@ -234,7 +243,7 @@ def train_one_epoch(model, dataloader, optimizer, device, criterion):
 
 
 def train(model, dataloader, optimizer, device, criterion):
-    for epoch in range(50):
+    for epoch in range(30):
         avg_loss = train_one_epoch(
             model, dataloader, optimizer, device, criterion)
         print(f"        Epoch {epoch+1}, batch avg loss={avg_loss:.4f}\n\n")

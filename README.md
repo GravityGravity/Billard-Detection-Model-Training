@@ -76,3 +76,16 @@ Each augmentation includes recalculated bounding-circle coordinates.
 Loads the trained model, predicts ball centers/radii/classes, and draws them on the image.
 
 ---
+
+
+## 📦 Requirements
+
+Install all dependencies via:
+
+opencv-python
+numpy
+torch
+torchvision
+pandas
+Pillow
+colorama

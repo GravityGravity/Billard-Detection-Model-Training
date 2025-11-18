@@ -9,7 +9,6 @@ from pathlib import Path
 from collections import defaultdict
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision
 from torchvision.models import resnet50
 import numpy as np
 import pandas as pd
@@ -18,13 +17,14 @@ from PIL import Image
 
 class BallDataset(torch.utils.data.Dataset):
     def __init__(self):
-        self.root = Path(sys.argv[1])
-        self.img_size = 512
-        self.gridsize = 16
-        self.labels = pd.read_csv('test/annotated_images/annotations.csv')
+        self.root = Path(sys.argv[1])  # Root of labeled images
+        self.img_size = 512  # Model accepted image sizes
+        self.gridsize = 16  # Grid size
+        self.labels = pd.read_csv(
+            'test/annotated_images/annotations.csv')  # Image labels
 
+        # Create dict of image names with list of ball boundaries as labels
         self.image_to_labels = defaultdict(list)
-
         for _, row in self.labels.iterrows():
             self.image_to_labels[row['filename']].append({
                 'x_center': float(row['x_center']),
@@ -34,42 +34,43 @@ class BallDataset(torch.utils.data.Dataset):
                 'ball_type': int(row['ball_type'])
             })
 
+        # Create a list of image names with .jpg, .png. jpeg
         valid_exts = {".jpg", ".jpeg", ".png"}
         all_imgs = [p.name for p in self.root.iterdir(
         ) if p.suffix.lower() in valid_exts]
+
+        # Sort list of image names
         self.image_files = sorted(all_imgs)
 
-        # self.image_files = sorted(list(self.image_to_labels.keys()))
-
-    def __len__(self):
+    def __len__(self):  # Number of images
         return len(self.image_files)
 
-    def _load_and_resize(self, path):
+    def _load_and_resize(self, path):  # Resize all images to 512x512 with RGB conversion
         img = Image.open(path).convert('RGB')
         w, h = img.size
+        # Return scales for ball center coordinates
         scaleW = self.img_size / w
         scaleH = self.img_size / h
 
-        # print(f'w/h:{w, h} sclaew/scaleH: {scaleW, scaleH}')  # debug print
         img = img.resize((self.img_size, self.img_size))
         return img, scaleW, scaleH
 
     def _img_to_tensor(self, img):
         img_arr = np.array(img, dtype=np.float32) / 255.0  # Normalize Image
         img_arr = np.transpose(img_arr, (2, 0, 1))  # W, H, C -> C, W, H
-        # Create tensor of normalized, transposed image
+        # Create tensor of normalized, transposed images
         return torch.from_numpy(img_arr)
 
     def __getitem__(self, idx):
-        filename = self.image_files[idx]
-        img_path = os.path.join(sys.argv[1], filename)
+        filename = self.image_files[idx]  # Grab image name
+        img_path = os.path.join(sys.argv[1], filename)  # Grab image path
 
         img, scaleW, scaleH = self._load_and_resize(img_path)
         img_tensor = self._img_to_tensor(img)
 
         g = self.gridsize  # gridsize 16
 
-        # A 16 * 16 image grid with 7 layers of answers / weights
+        # A 16 x 16 x 7 image grid with 7 layers of answers / weights
         target = torch.zeros((g, g, 7), dtype=torch.float32)
         cell_size = self.img_size / g
 
@@ -86,10 +87,11 @@ class BallDataset(torch.utils.data.Dataset):
             g_x = int(x_c / cell_size)
             g_y = int(y_c / cell_size)
 
+            # Check Out of bounds box
             if not (0 <= g_x < g and 0 <= g_y < g):
                 print(
                     f'  X - FILE: ({idx}) bbox not read -> g_x/y: {g_x, g_y} x/y {ann['x_center'], ann['y_center']} scaled x/y_c {x_c, y_c}\n')
-                continue  # Out of bounds box
+                continue
 
             # cell-relative coordinates
             rel_x = (x_c - (g_x * cell_size)) / cell_size
@@ -118,7 +120,7 @@ class ResNet50Backbone(nn.Module):  # Resnet 50 backbone creation
 
     def __init__(self, pretrained=True):
         super().__init__()
-        # Load a standard ResNet50
+        # Load a pre-made ResNet50
         if pretrained:
             backbone = resnet50(weights="IMAGENET1K_V1")
         else:
@@ -137,10 +139,13 @@ class ResNet50Backbone(nn.Module):  # Resnet 50 backbone creation
 class BillardDetector(nn.Module):
     def __init__(self, pretrained_backbone=True, num_classes=2, grid_size=16):
         super().__init__()
+        # Resnet50 as backbone
         self.backbone = ResNet50Backbone(pretrained=pretrained_backbone)
         self.grid_size = grid_size
 
-        head_out = 1 + 4 + num_classes  # obj + bbox + class logits
+        # obj (confidence) + bbox (x, y, w, h) + class types
+        head_out = 1 + 4 + num_classes
+        # Convlution Layer
         self.head = nn.Conv2d(self.backbone.out_channels,
                               head_out, kernel_size=1)
 
@@ -152,7 +157,7 @@ class BillardDetector(nn.Module):
 
 
 class YOLOLikeLoss(nn.Module):
-    def __init__(self, lambda_coord=5.0, lambda_noobj=5.0):
+    def __init__(self, lambda_coord=5.0, lambda_noobj=0.05):
         super().__init__()
         self.bce = nn.BCEWithLogitsLoss(reduction='none')
         self.mse = nn.MSELoss(reduction='none')
@@ -200,6 +205,8 @@ class YOLOLikeLoss(nn.Module):
         total = self.lambda_coord * bbox_loss + obj_loss + cls_loss
         return total, {'obj': obj_loss.item(), 'bbox': bbox_loss.item(), 'ball_type': cls_loss.item()}
 
+# Epoch Training
+
 
 def train_one_epoch(model, dataloader, optimizer, device, criterion):
     model.train()
@@ -227,21 +234,23 @@ def train_one_epoch(model, dataloader, optimizer, device, criterion):
 
 
 def train(model, dataloader, optimizer, device, criterion):
-    for epoch in range(100):
+    for epoch in range(50):
         avg_loss = train_one_epoch(
             model, dataloader, optimizer, device, criterion)
         print(f"        Epoch {epoch+1}, batch avg loss={avg_loss:.4f}\n\n")
 
 
 def main():
+    # Set up training model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dataset = BallDataset()
     dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=5, shuffle=True)
+        dataset, batch_size=10, shuffle=True)
     model = BillardDetector(pretrained_backbone=True).to(device)
     criterion = YOLOLikeLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
+    # Begin training model then save model
     train(model, dataloader, optimizer, device, criterion)
     torch.save(model, "billard_detect_model.pth")
 
@@ -252,20 +261,21 @@ def main():
             TotalBalls = 0
             img_tensors = img_tensors.to(device)
             outputs = model(img_tensors)
-            for N in range(dataloader.batch_size):
-                print(TotalBalls)
+            for N in range(dataloader.batch_size):  # For loop in range of Batch Size
+                print(TotalBalls)  # Print total # of balls
                 TotalBalls = 0
                 print('\n')
+                # Print image name being evaluated
                 print(f'EVAL IMAGE: {filename[N]}')
-                for g_row in range(16):
+                for g_row in range(16):  # For loop through 16x16 Grid
                     for g_col in range(16):
+                        # Output confidence score of detected ball
                         out_conf = torch.sigmoid(outputs[N, g_row, g_col, 0])
-                        # print(f'{i, g_row, g_col, 0}')
-                        if out_conf > 0.9:
+                        if out_conf > 0.9:  # SUPER CONFIDENT
                             TotalBalls += 1
                             print('     FOUND BALL WITH 0.9 CONF')
                             continue
-                        if out_conf > 0.5:
+                        if out_conf > 0.5:  # DECENTLY CONFIDENT
                             TotalBalls += 1
                             print('     FOUND BALL WITH 0.5 CONF')
                             continue

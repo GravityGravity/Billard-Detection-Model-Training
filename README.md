@@ -25,6 +25,25 @@ It includes scripts for training the model, generating augmentations, merging an
 - Single-image inference + result visualization
 
 ---
+## Reflection
+
+This was my first full object-detection training pipeline, and it was a huge learning experience.
+- My first attempt (DIY YOLO) failed — too complex and unstable.
+- My early ResNet18 model (224×224, 7×7 grid) lost too much detail for small balls.
+- Switching to ResNet50 + 512×512 + 16×16 grid significantly improved results.
+- With only 40 training images, I expanded to ~400 using augmentation.
+- Current accuracy: ~30% detection, with a high false-positive rate.
+- Future improvements:
+- Gather more real images (most important).
+- Tune YOLO loss weights and learning rate.
+- Add NMS to reduce false alarms.
+- Try pretrained YOLO models (YOLOv5n, YOLOv8n) for comparison.
+
+TEST OUTPUT
+----------------------------------------
+Detection rate: 10.87% - 15.5 points
+False alarm rate: 71.15% - 41.2 points
+Classification rate: 100.00% - 100.0 points
 
 ## 🗂 Project Structure
 
